@@ -167,6 +167,30 @@
     border-top:1px solid var(--line);padding-top:9px;
   }
 
+  /* Futures panel (Coinglass-style) */
+  .fut{
+    margin-top:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:14px 15px;
+  }
+  .fut h4{
+    font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);
+    font-weight:700;margin-bottom:6px;
+  }
+  .frow{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:9px 0;border-top:1px solid var(--line);font-size:14px;
+  }
+  .frow .k{color:var(--muted)}
+  .frow .v{font-family:"JetBrains Mono",monospace;font-weight:680}
+  .frow .v.u{color:var(--up)} .frow .v.d{color:var(--down)}
+  .lswrap{padding-top:11px;border-top:1px solid var(--line);margin-top:2px}
+  .lstitle{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .lsbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)}
+  .lsbar .l{background:var(--up)} .lsbar .s{background:var(--down)}
+  .lslbl{display:flex;justify-content:space-between;font-size:12.5px;margin-top:7px;font-family:"JetBrains Mono",monospace}
+  .lslbl .l{color:var(--up)} .lslbl .s{color:var(--down)}
+  .futnote{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.45;border-top:1px solid var(--line);padding-top:10px}
+
   .note{color:var(--muted);font-size:12px;margin-top:16px;text-align:center;line-height:1.5}
 
   .state{
@@ -187,7 +211,7 @@
 <div class="wrap">
   <div class="head"><span class="mark">SQUARE&nbsp;DESK</span></div>
   <h1>Trợ lý phân tích token</h1>
-  <p class="sub">Gõ một mã coin — nhận đoạn điểm tin 1h / 4h / 24h, copy dán thẳng vào Binance Square.</p>
+  <p class="sub">Gõ một mã coin — xu hướng 6 khung (15p→7n), funding, open interest, long/short, copy dán thẳng vào Binance Square.</p>
 
   <div class="controls">
     <div class="inputrow">
@@ -260,6 +284,7 @@
     return '$'+n.toFixed(0);
   }
   const sign = x => (x>=0?'+':'')+x.toFixed(2)+'%';
+  const pf4  = x => (x>=0?'+':'')+x.toFixed(4);
   // trend classification
   function dirOf(pct){
     if(pct >  0.5) return {key:'u', word:'Tăng',    cls:'u'};
@@ -277,47 +302,83 @@
     return j;
   }
 
-  // fetch ticker + 1h klines from chosen market, with fallback
+  // fetch price + multi-timeframe klines, with Futures→Spot fallback
+  async function fetchCore(root, sym){
+    const [tick, k1m, k1h, k1d] = await Promise.all([
+      getJSON(`${root}/ticker/24hr?symbol=${sym}`),
+      getJSON(`${root}/klines?symbol=${sym}&interval=1m&limit=61`),
+      getJSON(`${root}/klines?symbol=${sym}&interval=1h&limit=25`),
+      getJSON(`${root}/klines?symbol=${sym}&interval=1d&limit=8`)
+    ]);
+    return {tick, k1m, k1h, k1d};
+  }
+  // Futures-only extras: funding, open interest, long/short ratios (each best-effort)
+  async function fetchFutExtras(sym){
+    const F='https://fapi.binance.com/fapi/v1', D='https://fapi.binance.com/futures/data';
+    const e={};
+    try{ const p=await getJSON(`${F}/premiumIndex?symbol=${sym}`); e.funding=parseFloat(p.lastFundingRate); e.nextFunding=+p.nextFundingTime; e.mark=parseFloat(p.markPrice); }catch(_){}
+    try{ const o=await getJSON(`${F}/openInterest?symbol=${sym}`); e.oi=parseFloat(o.openInterest); }catch(_){}
+    try{ const g=await getJSON(`${D}/globalLongShortAccountRatio?symbol=${sym}&period=1h&limit=1`); if(g&&g[0]){ e.glLong=parseFloat(g[0].longAccount); e.glShort=parseFloat(g[0].shortAccount); } }catch(_){}
+    try{ const t=await getJSON(`${D}/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`); if(t&&t[0]){ e.topLong=parseFloat(t[0].longAccount!=null?t[0].longAccount:t[0].longPosition); e.topShort=parseFloat(t[0].shortAccount!=null?t[0].shortAccount:t[0].shortPosition); } }catch(_){}
+    return e;
+  }
   async function fetchData(base){
     const sym = base + 'USDT';
     const order = market==='fut' ? ['fut','spot'] : ['spot','fut'];
-    let lastErr=null, usedSpot=false;
+    let lastErr=null;
     for(const m of order){
       const root = m==='fut' ? 'https://fapi.binance.com/fapi/v1' : 'https://api.binance.com/api/v3';
       try{
-        const tick = await getJSON(`${root}/ticker/24hr?symbol=${sym}`);
-        const kl   = await getJSON(`${root}/klines?symbol=${sym}&interval=1h&limit=25`);
-        return {tick, kl, usedSpot: m==='spot', sym};
-      }catch(e){ lastErr=e; usedSpot=true; }
+        const core = await fetchCore(root, sym);
+        let extras=null;
+        if(m==='fut'){ try{ extras = await fetchFutExtras(sym); }catch(_){} }
+        return {...core, extras, usedSpot:(m==='spot'), sym};
+      }catch(e){ lastErr=e; }
     }
     throw lastErr || new Error('Không lấy được dữ liệu');
   }
 
   function compute(base, data){
-    const {tick, kl} = data;
-    const closes = kl.map(k=>parseFloat(k[4]));
-    const qvols  = kl.map(k=>parseFloat(k[7]));   // quote asset volume per 1h candle
-    const now = parseFloat(tick.lastPrice) || closes[closes.length-1];
+    const {tick, k1m, k1h, k1d, extras, usedSpot, sym} = data;
+    const c1m = k1m.map(k=>parseFloat(k[4]));
+    const c1h = k1h.map(k=>parseFloat(k[4]));
+    const c1d = k1d.map(k=>parseFloat(k[4]));
+    const qv1h = k1h.map(k=>parseFloat(k[7]));
+    const now = parseFloat(tick.lastPrice) || c1m[c1m.length-1];
 
-    const i = closes.length-1;
-    const ago1 = closes[i-1], ago4 = closes[i-4];
-    const ch1  = ((now-ago1)/ago1)*100;
-    const ch4  = ((now-ago4)/ago4)*100;
+    const ago = (arr,n)=>{ const i=arr.length-1-n; return i>=0?arr[i]:null; };
+    const chg = (p)=> p==null ? null : ((now-p)/p)*100;
+    const ch15 = chg(ago(c1m,15));
+    const ch30 = chg(ago(c1m,30));
+    const ch1  = chg(ago(c1m,60));
+    const ch4  = chg(ago(c1h,4));
     const ch24 = parseFloat(tick.priceChangePercent);
+    const ch7d = chg(ago(c1d,7));
     const vol24 = parseFloat(tick.quoteVolume);
 
-    // volume momentum: last fully-closed hour vs avg of the 24 prior closed hours
-    const closed = qvols.slice(0,-1);                 // drop current forming candle
+    // volume momentum: last closed hour vs average hourly volume over the window
+    const closed = qv1h.slice(0,-1);
     const lastHr = closed[closed.length-1];
     const avgHr  = closed.reduce((a,b)=>a+b,0)/closed.length;
     const ratio  = avgHr ? lastHr/avgHr : 1;
-    let volWord, volTag;
-    if(ratio>=1.4){ volWord='tăng mạnh (sôi động)'; volTag='nóng'; }
-    else if(ratio>=1.08){ volWord='nhỉnh hơn trung bình'; volTag='ấm'; }
-    else if(ratio>=0.7){ volWord='ổn định quanh trung bình'; volTag='đều'; }
-    else { volWord='thấp hơn trung bình (mỏng)'; volTag='cạn'; }
+    let volTag;
+    if(ratio>=1.4) volTag='nóng';
+    else if(ratio>=1.08) volTag='ấm';
+    else if(ratio>=0.7) volTag='đều';
+    else volTag='cạn';
 
-    return {base, sym:data.sym, usedSpot:data.usedSpot, now, ch1, ch4, ch24, vol24, ratio, volWord, volTag};
+    // derive futures extras into clean percentages
+    let fut=null;
+    if(!usedSpot && extras){
+      fut={};
+      if(extras.funding!=null) fut.funding = extras.funding*100;   // %
+      if(extras.oi!=null) fut.oiUsd = extras.oi*(extras.mark||now);
+      if(extras.glLong!=null){ const t=extras.glLong+extras.glShort; if(t){ fut.glLong=extras.glLong/t*100; fut.glShort=extras.glShort/t*100; } }
+      if(extras.topLong!=null){ const t=extras.topLong+extras.topShort; if(t){ fut.topLong=extras.topLong/t*100; fut.topShort=extras.topShort/t*100; } }
+      if(Object.keys(fut).length===0) fut=null;
+    }
+
+    return {base, sym, usedSpot, now, ch15, ch30, ch1, ch4, ch24, ch7d, vol24, ratio, volTag, fut};
   }
 
   // ---- KÈO XỔ SỐ (giải trí, hoàn toàn ngẫu nhiên) ----
@@ -388,28 +449,49 @@
     return 'Các khung đang trái chiều — thị trường giằng co, chờ tín hiệu rõ hơn trước khi hành động.';
   }
   function volSentence(d){
-    if(d.volTag==='nóng') return `Khối lượng giờ gần nhất ${d.volWord} — có lực tham gia thật phía sau biến động.`;
-    if(d.volTag==='ấm')   return `Khối lượng ${d.volWord}, dòng tiền đang ấm dần.`;
-    if(d.volTag==='cạn')  return `Khối lượng ${d.volWord} — biến động giá dễ bị nhiễu, chưa nên tin vội.`;
-    return `Khối lượng ${d.volWord}.`;
+    const dir = (d.ch24!=null) ? d.ch24 : (d.ch1||0);
+    if(d.volTag==='nóng'){
+      if(dir < -1) return `Khối lượng giờ gần nhất tăng vọt trong khi giá giảm — áp lực bán đang mạnh.`;
+      if(dir >  1) return `Khối lượng giờ gần nhất tăng vọt cùng giá tăng — lực mua đang vào thật.`;
+      return `Khối lượng giờ gần nhất sôi động — biến động đang được giao dịch mạnh tay.`;
+    }
+    if(d.volTag==='ấm')  return `Khối lượng nhỉnh hơn trung bình, dòng tiền đang ấm dần.`;
+    if(d.volTag==='cạn') return `Khối lượng mỏng hơn trung bình — biến động giá dễ bị nhiễu, chưa nên tin vội.`;
+    return `Khối lượng ổn định quanh trung bình.`;
   }
 
   function buildPost(d){
     const domKey = dirOf(d.ch24).key;
     const hook = rand(HOOKS[domKey])(d.base);
     const mkt = d.usedSpot ? 'spot' : 'futures';
-    const tag = (k,v)=>{ const x=dirOf(v); return `${k}: ${x.word} (${sign(v)})`; };
+    const pf = v => v==null ? '—' : sign(v);
     const lines = [
       hook,
       ``,
       `$${d.base} quanh $${fmtPrice(d.now)} · ${mkt}`,
-      `• ${tag('1h',d.ch1)}`,
-      `• ${tag('4h',d.ch4)}`,
-      `• ${tag('24h',d.ch24)}`,
+      `Ngắn hạn — 15p ${pf(d.ch15)} · 30p ${pf(d.ch30)} · 1h ${pf(d.ch1)}`,
+      `Trung hạn — 4h ${pf(d.ch4)} · 24h ${pf(d.ch24)} · 7n ${pf(d.ch7d)}`,
       ``,
       `Khối lượng 24h ~${fmtVol(d.vol24)}. ${volSentence(d)}`,
-      readConfluence(d),
     ];
+    if(d.fut){
+      const f=d.fut;
+      if(f.funding!=null){
+        const note = f.funding>0.01 ? 'phe Long đang trả phí, đám đông nghiêng Long'
+                   : f.funding<-0.01 ? 'phe Short đang trả phí, đám đông nghiêng Short'
+                   : 'gần trung tính';
+        lines.push(`Funding ${pf4(f.funding)}% — ${note}.`);
+      }
+      if(f.oiUsd!=null) lines.push(`Open Interest ~${fmtVol(f.oiUsd)} đang mở trên thị trường.`);
+      const lo = (f.topLong!=null)?f.topLong:f.glLong;
+      const sh = (f.topLong!=null)?f.topShort:f.glShort;
+      if(lo!=null){
+        const who = (f.topLong!=null)?'Top trader':'Toàn thị trường';
+        const lean = lo>55?'nghiêng Long':lo<45?'nghiêng Short':'khá cân bằng';
+        lines.push(`${who}: Long ${lo.toFixed(1)}% / Short ${sh.toFixed(1)}% — ${lean}.`);
+      }
+    }
+    lines.push(readConfluence(d));
     if(includeKeo && keo){ lines.push(``, keoToText()); }
     lines.push(
       ``,
@@ -422,10 +504,36 @@
 
   // ---- render ----
   function statCard(tf, pct){
+    if(pct==null) return `<div class="stat"><div class="tf">${tf}</div><div class="pct f">—</div><div class="dir f">N/A</div></div>`;
     const x = dirOf(pct);
     return `<div class="stat"><div class="tf">${tf}</div>
       <div class="pct ${x.cls}">${sign(pct)}</div>
       <div class="dir ${x.cls}">${x.word}</div></div>`;
+  }
+  function frow(k,v,cls){
+    return `<div class="frow"><span class="k">${k}</span><span class="v ${cls||''}">${v}</span></div>`;
+  }
+  function lsBar(longPct, shortPct, label){
+    const L=longPct.toFixed(1), S=shortPct.toFixed(1);
+    return `<div class="lswrap">
+      <div class="lstitle">${label}</div>
+      <div class="lsbar"><div class="l" style="width:${longPct}%"></div><div class="s" style="width:${shortPct}%"></div></div>
+      <div class="lslbl"><span class="l">Long ${L}%</span><span class="s">Short ${S}%</span></div>
+    </div>`;
+  }
+  function futPanel(d){
+    if(!d.fut) return '';
+    const f=d.fut; let body='';
+    if(f.funding!=null) body += frow('Funding rate', pf4(f.funding)+'%', f.funding>=0?'u':'d');
+    if(f.oiUsd!=null)   body += frow('Open Interest', fmtVol(f.oiUsd));
+    if(f.topLong!=null) body += lsBar(f.topLong, f.topShort, 'Top trader · đồng tiền thông minh');
+    if(f.glLong!=null)  body += lsBar(f.glLong, f.glShort, 'Toàn thị trường');
+    if(!body) return '';
+    return `<div class="fut">
+      <h4>Dữ liệu Futures (Coinglass-style)</h4>
+      ${body}
+      <div class="futnote">Funding dương: phe Long trả phí (đám đông nghiêng Long). Tỷ lệ Long/Short là dữ liệu công khai của Binance — không phải bảng Smart Money nội bộ.</div>
+    </div>`;
   }
 
   function render(d){
@@ -438,8 +546,10 @@
         <span class="src">${d.usedSpot?'SPOT':'FUTURES'} · BINANCE</span>
       </div>
       <div class="stats">
-        ${statCard('1H', d.ch1)}${statCard('4H', d.ch4)}${statCard('24H', d.ch24)}
+        ${statCard('15P', d.ch15)}${statCard('30P', d.ch30)}${statCard('1H', d.ch1)}
+        ${statCard('4H', d.ch4)}${statCard('24H', d.ch24)}${statCard('7N', d.ch7d)}
       </div>
+      ${futPanel(d)}
       <div class="card">
         <div class="bar"><span class="lbl">Bài đăng Square</span><span class="wc"><span id="wc">${words}</span> từ</span></div>
         <div class="post" id="posttext">${buildPost(d).replace(/</g,'&lt;')}</div>
