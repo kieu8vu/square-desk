@@ -384,21 +384,38 @@
   // ---- KÈO XỔ SỐ (giải trí, hoàn toàn ngẫu nhiên) ----
   const KEO = [
     { v:'LONG',  e:'🟢', cls:'u', w:5, lines:[
-      'Vũ trụ vừa nháy mắt: LONG. Lý do? Chẳng có lý do nào cả 😎',
-      'Bánh xe quay trúng ô LONG — tin vào vận may hơn tin vào râu nến.',
-      'Kèo hôm nay: LONG. Đúng thì thiên tài, sai thì đổ tại sao Hoả nghịch.',
-      'LONG! Vì màu xanh hợp mệnh và hợp ví (hy vọng vậy).'
+      'WAGMI! Vũ trụ phán LONG — "We are all gonna make it" hay không thì tính sau 🚀',
+      'Kèo LONG. Tay kim cương 💎 không bao giờ buông, kể cả khi nến buông tay mình.',
+      'LFG! Bánh xe chỉ vào LONG — lên tàu hay đứng nhìn tàu chạy là việc của bạn 🚂',
+      'To the moon hay to the ground thì cũng đã quay trúng LONG rồi 🌝',
+      'Kèo hôm nay: BTFD (buy the dip) — cầu cho đây đúng là "dip" chứ không phải vực.',
+      'LONG! Number go up, ví dày lên — theo lý thuyết.',
+      'Vũ trụ hô MÚC. Múc xong nhớ pha trà ngồi gồng nhé.',
+      'LONG nhẹ. Hôm nay là ngày bạn đổi đời… hoặc đổi khẩu vị mì gói.',
+      'Bánh xe quay trúng LONG — diamond hands mode: ON 💎🙌',
+      'Kèo LONG. Thần chú: đu cũng được, miễn là đu cùng cả làng 😎',
+      'GM! Vũ trụ chúc buổi sáng tốt lành bằng một kèo LONG ☀️'
     ]},
     { v:'SHORT', e:'🔴', cls:'d', w:5, lines:[
-      'Bánh xe số phận chỉ vào SHORT. Phe gấu gửi lời chào 🐻',
-      'SHORT! Vì cái biểu đồ trông y hệt cầu trượt công viên nước.',
-      'Số phận phán SHORT. Đúng thì khoe story, sai thì… cũng xoá story.',
-      'SHORT nhẹ. Đỏ hôm nay để xanh ngày mai (chắc thế).'
+      'NGMI cho phe mua hôm nay? Bánh xe chỉ vào SHORT 🐻',
+      'SHORT! Biểu đồ trông như cầu trượt — và bạn vừa mua vé.',
+      'Kèo SHORT. "Đỏ hôm nay để xanh ngày mai" — câu cope quốc dân.',
+      'Vũ trụ phán SHORT. Phe gấu vừa nhắn: gm 🐻',
+      'SHORT nhẹ. Đu đỉnh là một nghệ thuật, và người short là nghệ sĩ.',
+      'Bánh xe chỉ SHORT — paper hands tập hợp, tới giờ xả hàng.',
+      'SHORT! Vì cây nào rồi cũng có ngày rụng lá, nhớ không?',
+      'Kèo SHORT. Đúng thì gọi là tầm nhìn, sai thì gọi là… học phí.',
+      'Vũ trụ hô XẢ. Xả xong nhớ tắt app đi ngủ cho lành.',
+      'SHORT. REKT phe long hay rekt chính mình — chỉ bánh xe biết 🎰',
+      'Kèo SHORT. Lùa gà thì cẩn thận, biết đâu mình là gà 🐔'
     ]},
     { v:'ĐỨNG NGOÀI', e:'🍵', cls:'f', w:2, lines:[
-      'Kèo đẹp nhất hôm nay là TẮT MÁY ĐI NGỦ 😴 — kèo này thắng 100%.',
+      'Kèo đẹp nhất hôm nay: ĐI NGỦ 😴 — cash is a position, và giường cũng vậy.',
       'Vũ trụ khuyên: pha ly trà, ngồi xem người ta cháy tài khoản 🍵',
-      'Đứng ngoài. Đôi khi không vào kèo mới là kèo đỉnh nhất.'
+      'ĐỨNG NGOÀI. Không vào kèo cũng là một dạng diamond hands — với tiền mặt 💎',
+      'Touch grass đi bạn ơi. Nến vẫn ở đó khi bạn quay lại 🌱',
+      'Kèo hôm nay là KHÔNG KÈO. Đỉnh cao của trình là biết khi nào ngồi im.',
+      'Vũ trụ phán: đứng ngoài, giữ vốn, giữ tóc.'
     ]}
   ];
   const VIBES = [
@@ -406,7 +423,11 @@
     'Size đề xuất: bằng tiền một ly cà phê. x125 là dành cho người ghét tiền của mình.',
     'Nút an toàn nhất trên sàn vẫn là nút Tắt máy.',
     'Stop-loss là người yêu cũ: bỏ rồi mới biết quý.',
-    'Quy tắc vàng: thua thì gọi là "học phí", thắng thì gọi là "trình".'
+    'Quy tắc vàng: thua thì gọi là "học phí", thắng thì gọi là "trình".',
+    'DCA hay "đu trung bình giá" — gọi sao cũng được, miễn đừng all-in.',
+    'Gồng lỗ giỏi không bằng cắt lỗ sớm. Nhưng ai mà nghe.',
+    'WAGMI hay NGMI là do quản lý vốn quyết định, không phải bánh xe này.',
+    'Nhớ: "không phải lời khuyên" là câu cửa miệng có lý do của nó.'
   ];
   function weightedPick(arr){
     const tot = arr.reduce((a,b)=>a+(b.w||1),0); let r=Math.random()*tot;
