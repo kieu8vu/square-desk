@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Square Desk — Trợ lý phân tích token</title>
+<style>
+  :root{
+    --bg:#0d1117;
+    --panel:#151b23;
+    --panel-2:#1b232d;
+    --line:#26303b;
+    --ink:#e8eef5;
+    --muted:#8a98a8;
+    --gold:#e3a008;      /* brand / action accent */
+    --gold-soft:#3a2e10;
+    --up:#23c277;        /* semantic: price up */
+    --down:#f0616d;      /* semantic: price down */
+    --flat:#7d8a99;      /* semantic: sideways */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:
+      radial-gradient(900px 500px at 85% -10%, #182230 0%, transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+    min-height:100vh;
+    padding:28px 16px 64px;
+    line-height:1.55;
+  }
+  .wrap{max-width:560px;margin:0 auto}
+
+  /* Header */
+  .head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+  .mark{
+    font-family:"JetBrains Mono","SF Mono",ui-monospace,monospace;
+    font-weight:700;font-size:13px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--gold);
+  }
+  h1{font-size:25px;font-weight:680;letter-spacing:-.02em;margin-top:2px}
+  .sub{color:var(--muted);font-size:13.5px;margin:4px 0 22px}
+
+  /* Input row */
+  .controls{display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
+  .inputrow{display:flex;gap:8px}
+  .field{
+    flex:1;display:flex;align-items:center;gap:8px;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:0 14px;transition:border-color .15s;
+  }
+  .field:focus-within{border-color:var(--gold)}
+  .field .pre{font-family:"JetBrains Mono",monospace;color:var(--muted);font-size:16px}
+  input{
+    flex:1;background:transparent;border:0;outline:0;color:var(--ink);
+    font-family:"JetBrains Mono",monospace;font-size:18px;letter-spacing:.06em;
+    text-transform:uppercase;padding:14px 0;min-width:0;
+  }
+  input::placeholder{color:#56636f;letter-spacing:.04em}
+  button.go{
+    background:var(--gold);color:#1a1300;border:0;border-radius:12px;
+    font-weight:680;font-size:15px;padding:0 22px;cursor:pointer;
+    transition:filter .15s,transform .05s;white-space:nowrap;
+  }
+  button.go:hover{filter:brightness(1.08)}
+  button.go:active{transform:translateY(1px)}
+  button.go:disabled{opacity:.55;cursor:wait}
+
+  .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{
+    background:var(--panel);border:1px solid var(--line);color:var(--muted);
+    border-radius:8px;padding:6px 11px;font-size:12.5px;cursor:pointer;
+    font-family:"JetBrains Mono",monospace;transition:.15s;
+  }
+  .chip:hover{border-color:var(--gold);color:var(--ink)}
+  .seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px}
+  .seg button{
+    background:transparent;border:0;color:var(--muted);font-size:12.5px;
+    padding:6px 13px;border-radius:6px;cursor:pointer;font-weight:600;
+    font-family:"JetBrains Mono",monospace;
+  }
+  .seg button[aria-pressed="true"]{background:var(--gold-soft);color:var(--gold)}
+
+  /* Output */
+  #out{margin-top:22px}
+  .hidden{display:none}
+
+  .stats{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;
+  }
+  .stat{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:13px 13px 12px;
+  }
+  .stat .tf{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.12em}
+  .stat .pct{font-family:"JetBrains Mono",monospace;font-size:21px;font-weight:680;margin-top:6px;letter-spacing:-.01em}
+  .stat .dir{font-size:12px;margin-top:1px;font-weight:600}
+  .u{color:var(--up)} .d{color:var(--down)} .f{color:var(--flat)}
+
+  .priceline{
+    display:flex;align-items:baseline;gap:10px;margin-bottom:14px;
+    font-family:"JetBrains Mono",monospace;
+  }
+  .priceline .sym{font-size:15px;color:var(--gold);font-weight:700}
+  .priceline .px{font-size:22px;font-weight:680}
+  .priceline .src{margin-left:auto;font-size:11px;color:var(--muted);letter-spacing:.08em}
+
+  .card{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;
+  }
+  .card .bar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:11px 15px;border-bottom:1px solid var(--line);
+  }
+  .card .bar .lbl{font-size:12px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+  .card .bar .wc{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted)}
+  .post{
+    padding:16px 17px;white-space:pre-wrap;font-size:15px;line-height:1.62;
+    color:#dde6f0;
+  }
+  .actions{display:flex;gap:8px;padding:0 15px 15px}
+  button.copy{
+    flex:1;background:var(--gold);color:#1a1300;border:0;border-radius:10px;
+    font-weight:680;font-size:14.5px;padding:12px;cursor:pointer;transition:filter .15s;
+  }
+  button.copy:hover{filter:brightness(1.08)}
+  button.copy.done{background:var(--up);color:#062b18}
+  button.regen{
+    background:var(--panel);color:var(--muted);border:1px solid var(--line);
+    border-radius:10px;font-size:14px;padding:12px 16px;cursor:pointer;
+  }
+  button.regen:hover{color:var(--ink);border-color:var(--gold)}
+
+  /* Kèo xổ số */
+  .keo{
+    margin-top:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:15px;position:relative;overflow:hidden;
+  }
+  .keo:before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(420px 160px at 100% 0%, rgba(227,160,8,.10), transparent 70%);
+  }
+  .keo-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .keo-badge{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);font-weight:700}
+  .reroll{
+    background:var(--gold-soft);color:var(--gold);border:1px solid #4a3a14;
+    border-radius:9px;font-size:13px;font-weight:600;padding:7px 12px;cursor:pointer;transition:.15s;
+  }
+  .reroll:hover{filter:brightness(1.15)}
+  .reroll:active{transform:translateY(1px)}
+  .keo-verdict{
+    font-family:"JetBrains Mono",monospace;font-size:30px;font-weight:700;
+    letter-spacing:.02em;line-height:1.1;
+  }
+  .keo-line{font-size:14.5px;margin-top:8px;color:#dde6f0;line-height:1.5}
+  .keo-vibe{font-size:13px;margin-top:6px;color:var(--muted);font-style:italic}
+  .keo-inc{
+    display:flex;align-items:center;gap:8px;margin-top:13px;font-size:13.5px;
+    color:var(--ink);cursor:pointer;user-select:none;
+  }
+  .keo-inc input{width:16px;height:16px;accent-color:var(--gold);cursor:pointer}
+  .keo-warn{
+    font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.45;
+    border-top:1px solid var(--line);padding-top:9px;
+  }
+
+  .note{color:var(--muted);font-size:12px;margin-top:16px;text-align:center;line-height:1.5}
+
+  .state{
+    text-align:center;padding:30px 18px;color:var(--muted);font-size:14.5px;
+    border:1px dashed var(--line);border-radius:14px;
+  }
+  .state.err{color:var(--down);border-color:#3a2228;background:#1c1416}
+  .spin{
+    display:inline-block;width:15px;height:15px;border:2px solid var(--line);
+    border-top-color:var(--gold);border-radius:50%;animation:sp .7s linear infinite;
+    vertical-align:-2px;margin-right:8px;
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><span class="mark">SQUARE&nbsp;DESK</span></div>
+  <h1>Trợ lý phân tích token</h1>
+  <p class="sub">Gõ một mã coin — nhận đoạn điểm tin 1h / 4h / 24h, copy dán thẳng vào Binance Square.</p>
+
+  <div class="controls">
+    <div class="inputrow">
+      <label class="field">
+        <span class="pre">$</span>
+        <input id="ticker" placeholder="BTC" autocomplete="off" spellcheck="false" maxlength="14" />
+      </label>
+      <button class="go" id="run">Phân tích</button>
+    </div>
+    <div class="meta">
+      <div class="chips" id="chips"></div>
+      <div class="seg" role="group" aria-label="Thị trường">
+        <button id="mkt-fut" aria-pressed="true">Futures</button>
+        <button id="mkt-spot" aria-pressed="false">Spot</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="out"></div>
+
+  <p class="note">Dữ liệu thị trường lấy trực tiếp từ Binance. Nội dung mang tính thông tin, <b>không phải lời khuyên đầu tư</b> — luôn DYOR.</p>
+</div>
+
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const input = $('#ticker'), runBtn = $('#run'), out = $('#out');
+  let market = 'fut';            // 'fut' | 'spot'
+  let last = null;               // last computed dataset, for regenerate
+  let keo = null;                // current lottery pick (for fun)
+  let includeKeo = true;         // mặc định chèn kèo vui vào bài đăng
+
+  // quick picks
+  const picks = ['BTC','ETH','SOL','BNB','XRP','DOGE'];
+  const chips = $('#chips');
+  picks.forEach(p=>{
+    const b=document.createElement('button'); b.className='chip'; b.textContent=p;
+    b.onclick=()=>{ input.value=p; run(); };
+    chips.appendChild(b);
+  });
+
+  $('#mkt-fut').onclick = ()=>setMarket('fut');
+  $('#mkt-spot').onclick = ()=>setMarket('spot');
+  function setMarket(m){
+    market=m;
+    $('#mkt-fut').setAttribute('aria-pressed', m==='fut');
+    $('#mkt-spot').setAttribute('aria-pressed', m==='spot');
+    if(input.value.trim()) run();
+  }
+
+  runBtn.onclick = run;
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
+
+  // ---- helpers ----
+  function cleanTicker(raw){
+    let t = raw.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    t = t.replace(/(USDT|USDC|USD|PERP)$/,'');
+    return t;
+  }
+  function fmtPrice(n){
+    if(n>=1000) return n.toLocaleString('en-US',{maximumFractionDigits:2});
+    if(n>=1)    return n.toLocaleString('en-US',{maximumFractionDigits:4});
+    if(n>=0.01) return n.toFixed(5);
+    return n.toPrecision(4);
+  }
+  function fmtVol(n){
+    if(n>=1e9) return '$'+(n/1e9).toFixed(2)+'B';
+    if(n>=1e6) return '$'+(n/1e6).toFixed(1)+'M';
+    if(n>=1e3) return '$'+(n/1e3).toFixed(0)+'K';
+    return '$'+n.toFixed(0);
+  }
+  const sign = x => (x>=0?'+':'')+x.toFixed(2)+'%';
+  // trend classification
+  function dirOf(pct){
+    if(pct >  0.5) return {key:'u', word:'Tăng',    cls:'u'};
+    if(pct < -0.5) return {key:'d', word:'Giảm',    cls:'d'};
+    return                {key:'f', word:'Đi ngang',cls:'f'};
+  }
+
+  async function getJSON(url){
+    const r = await fetch(url);
+    const j = await r.json();
+    if(!r.ok || (j && j.code && j.msg)) {
+      const e = new Error(j && j.msg ? j.msg : ('HTTP '+r.status));
+      e.binance = j; throw e;
+    }
+    return j;
+  }
+
+  // fetch ticker + 1h klines from chosen market, with fallback
+  async function fetchData(base){
+    const sym = base + 'USDT';
+    const order = market==='fut' ? ['fut','spot'] : ['spot','fut'];
+    let lastErr=null, usedSpot=false;
+    for(const m of order){
+      const root = m==='fut' ? 'https://fapi.binance.com/fapi/v1' : 'https://api.binance.com/api/v3';
+      try{
+        const tick = await getJSON(`${root}/ticker/24hr?symbol=${sym}`);
+        const kl   = await getJSON(`${root}/klines?symbol=${sym}&interval=1h&limit=25`);
+        return {tick, kl, usedSpot: m==='spot', sym};
+      }catch(e){ lastErr=e; usedSpot=true; }
+    }
+    throw lastErr || new Error('Không lấy được dữ liệu');
+  }
+
+  function compute(base, data){
+    const {tick, kl} = data;
+    const closes = kl.map(k=>parseFloat(k[4]));
+    const qvols  = kl.map(k=>parseFloat(k[7]));   // quote asset volume per 1h candle
+    const now = parseFloat(tick.lastPrice) || closes[closes.length-1];
+
+    const i = closes.length-1;
+    const ago1 = closes[i-1], ago4 = closes[i-4];
+    const ch1  = ((now-ago1)/ago1)*100;
+    const ch4  = ((now-ago4)/ago4)*100;
+    const ch24 = parseFloat(tick.priceChangePercent);
+    const vol24 = parseFloat(tick.quoteVolume);
+
+    // volume momentum: last fully-closed hour vs avg of the 24 prior closed hours
+    const closed = qvols.slice(0,-1);                 // drop current forming candle
+    const lastHr = closed[closed.length-1];
+    const avgHr  = closed.reduce((a,b)=>a+b,0)/closed.length;
+    const ratio  = avgHr ? lastHr/avgHr : 1;
+    let volWord, volTag;
+    if(ratio>=1.4){ volWord='tăng mạnh (sôi động)'; volTag='nóng'; }
+    else if(ratio>=1.08){ volWord='nhỉnh hơn trung bình'; volTag='ấm'; }
+    else if(ratio>=0.7){ volWord='ổn định quanh trung bình'; volTag='đều'; }
+    else { volWord='thấp hơn trung bình (mỏng)'; volTag='cạn'; }
+
+    return {base, sym:data.sym, usedSpot:data.usedSpot, now, ch1, ch4, ch24, vol24, ratio, volWord, volTag};
+  }
+
+  // ---- KÈO XỔ SỐ (giải trí, hoàn toàn ngẫu nhiên) ----
+  const KEO = [
+    { v:'LONG',  e:'🟢', cls:'u', w:5, lines:[
+      'Vũ trụ vừa nháy mắt: LONG. Lý do? Chẳng có lý do nào cả 😎',
+      'Bánh xe quay trúng ô LONG — tin vào vận may hơn tin vào râu nến.',
+      'Kèo hôm nay: LONG. Đúng thì thiên tài, sai thì đổ tại sao Hoả nghịch.',
+      'LONG! Vì màu xanh hợp mệnh và hợp ví (hy vọng vậy).'
+    ]},
+    { v:'SHORT', e:'🔴', cls:'d', w:5, lines:[
+      'Bánh xe số phận chỉ vào SHORT. Phe gấu gửi lời chào 🐻',
+      'SHORT! Vì cái biểu đồ trông y hệt cầu trượt công viên nước.',
+      'Số phận phán SHORT. Đúng thì khoe story, sai thì… cũng xoá story.',
+      'SHORT nhẹ. Đỏ hôm nay để xanh ngày mai (chắc thế).'
+    ]},
+    { v:'ĐỨNG NGOÀI', e:'🍵', cls:'f', w:2, lines:[
+      'Kèo đẹp nhất hôm nay là TẮT MÁY ĐI NGỦ 😴 — kèo này thắng 100%.',
+      'Vũ trụ khuyên: pha ly trà, ngồi xem người ta cháy tài khoản 🍵',
+      'Đứng ngoài. Đôi khi không vào kèo mới là kèo đỉnh nhất.'
+    ]}
+  ];
+  const VIBES = [
+    'Đòn bẩy gợi ý: x1 — vì bạn còn cả cuộc đời phía trước.',
+    'Size đề xuất: bằng tiền một ly cà phê. x125 là dành cho người ghét tiền của mình.',
+    'Nút an toàn nhất trên sàn vẫn là nút Tắt máy.',
+    'Stop-loss là người yêu cũ: bỏ rồi mới biết quý.',
+    'Quy tắc vàng: thua thì gọi là "học phí", thắng thì gọi là "trình".'
+  ];
+  function weightedPick(arr){
+    const tot = arr.reduce((a,b)=>a+(b.w||1),0); let r=Math.random()*tot;
+    for(const it of arr){ r-=(it.w||1); if(r<=0) return it; }
+    return arr[0];
+  }
+  function buildKeo(){
+    const pick = weightedPick(KEO);
+    return { verdict:pick.v, emoji:pick.e, cls:pick.cls,
+             line: pick.lines[Math.floor(Math.random()*pick.lines.length)],
+             vibe: VIBES[Math.floor(Math.random()*VIBES.length)] };
+  }
+  function keoToText(){
+    if(!keo) return '';
+    return `🎲 KÈO XỔ SỐ HÔM NAY: ${keo.emoji} ${keo.verdict}\n`+
+           `(${keo.line}) — quay ngẫu nhiên cho vui, KHÔNG phải tín hiệu giao dịch.`;
+  }
+
+  // ---- post generator (varied, ~120-170 từ) ----
+  const HOOKS = {
+    u:[t=>`$${t} đang nhuốm xanh — dòng tiền có vẻ đang quay lại.`,
+       t=>`Sức bật của $${t} hôm nay đáng để soi kỹ.`,
+       t=>`$${t} đi lên qua các khung — nhưng bền tới đâu?`],
+    d:[t=>`$${t} đang chịu áp lực bán, cẩn thận bắt dao rơi.`,
+       t=>`Sắc đỏ phủ lên $${t} — phe mua đang đuối sức.`,
+       t=>`$${t} trượt giá qua nhiều khung thời gian.`],
+    f:[t=>`$${t} đi ngang, thị trường đang chờ một cú hích.`,
+       t=>`$${t} tích lũy quanh vùng giá hiện tại.`,
+       t=>`Chưa có hướng rõ ràng cho $${t} lúc này.`]
+  };
+  const rand = a => a[Math.floor(Math.random()*a.length)];
+
+  function readConfluence(d){
+    const dirs = [dirOf(d.ch1).key, dirOf(d.ch4).key, dirOf(d.ch24).key];
+    const ups = dirs.filter(x=>x==='u').length, downs = dirs.filter(x=>x==='d').length;
+    if(ups===3) return 'Cả ba khung cùng xanh — xu hướng tăng đang khá đồng thuận, nhưng để ý nhịp chốt lời.';
+    if(downs===3) return 'Cả ba khung cùng đỏ — đà giảm đang chiếm ưu thế, ưu tiên quản trị rủi ro.';
+    if(ups>=2) return 'Phần lớn khung nghiêng tăng, dù còn một khung lưỡng lự — tín hiệu cải thiện nhưng chưa chắc chắn.';
+    if(downs>=2) return 'Đa số khung nghiêng giảm — lực hồi (nếu có) dễ chỉ là kỹ thuật.';
+    return 'Các khung đang trái chiều — thị trường giằng co, chờ tín hiệu rõ hơn trước khi hành động.';
+  }
+  function volSentence(d){
+    if(d.volTag==='nóng') return `Khối lượng giờ gần nhất ${d.volWord} — có lực tham gia thật phía sau biến động.`;
+    if(d.volTag==='ấm')   return `Khối lượng ${d.volWord}, dòng tiền đang ấm dần.`;
+    if(d.volTag==='cạn')  return `Khối lượng ${d.volWord} — biến động giá dễ bị nhiễu, chưa nên tin vội.`;
+    return `Khối lượng ${d.volWord}.`;
+  }
+
+  function buildPost(d){
+    const domKey = dirOf(d.ch24).key;
+    const hook = rand(HOOKS[domKey])(d.base);
+    const mkt = d.usedSpot ? 'spot' : 'futures';
+    const tag = (k,v)=>{ const x=dirOf(v); return `${k}: ${x.word} (${sign(v)})`; };
+    const lines = [
+      hook,
+      ``,
+      `$${d.base} quanh $${fmtPrice(d.now)} · ${mkt}`,
+      `• ${tag('1h',d.ch1)}`,
+      `• ${tag('4h',d.ch4)}`,
+      `• ${tag('24h',d.ch24)}`,
+      ``,
+      `Khối lượng 24h ~${fmtVol(d.vol24)}. ${volSentence(d)}`,
+      readConfluence(d),
+    ];
+    if(includeKeo && keo){ lines.push(``, keoToText()); }
+    lines.push(
+      ``,
+      `Giữ vốn trước, kiếm tiền sau — DYOR, không phải lời khuyên đầu tư.`,
+      ``,
+      `#Binance #Futures #${d.base} #Coinglass #Crypto`
+    );
+    return lines.join('\n');
+  }
+
+  // ---- render ----
+  function statCard(tf, pct){
+    const x = dirOf(pct);
+    return `<div class="stat"><div class="tf">${tf}</div>
+      <div class="pct ${x.cls}">${sign(pct)}</div>
+      <div class="dir ${x.cls}">${x.word}</div></div>`;
+  }
+
+  function render(d){
+    last = d;
+    const words = buildPost(d).trim().split(/\s+/).length;
+    out.innerHTML = `
+      <div class="priceline">
+        <span class="sym">$${d.base}</span>
+        <span class="px">$${fmtPrice(d.now)}</span>
+        <span class="src">${d.usedSpot?'SPOT':'FUTURES'} · BINANCE</span>
+      </div>
+      <div class="stats">
+        ${statCard('1H', d.ch1)}${statCard('4H', d.ch4)}${statCard('24H', d.ch24)}
+      </div>
+      <div class="card">
+        <div class="bar"><span class="lbl">Bài đăng Square</span><span class="wc"><span id="wc">${words}</span> từ</span></div>
+        <div class="post" id="posttext">${buildPost(d).replace(/</g,'&lt;')}</div>
+        <div class="actions">
+          <button class="copy" id="copyBtn">Copy nội dung</button>
+          <button class="regen" id="regenBtn" title="Đổi cách diễn đạt">↻ Viết lại</button>
+        </div>
+      </div>
+      <div class="keo">
+        <div class="keo-top">
+          <span class="keo-badge">🎲 Kèo xổ số</span>
+          <button class="reroll" id="rerollBtn">Quay lại 🎲</button>
+        </div>
+        <div class="keo-verdict ${keo.cls}" id="keoVerdict">${keo.emoji} ${keo.verdict}</div>
+        <div class="keo-line" id="keoLine">${keo.line}</div>
+        <div class="keo-vibe" id="keoVibe">${keo.vibe}</div>
+        <label class="keo-inc"><input type="checkbox" id="incKeo" ${includeKeo?'checked':''}> Chèn kèo vui vào bài đăng</label>
+        <div class="keo-warn">Chỉ để giải trí. Quay ngẫu nhiên hệt như mua vé số — tuyệt đối không phải lời khuyên đầu tư hay tín hiệu giao dịch.</div>
+      </div>`;
+
+    function refreshPost(){
+      const p = buildPost(last);
+      $('#posttext').innerHTML = p.replace(/</g,'&lt;');
+      $('#wc').textContent = p.trim().split(/\s+/).length;
+    }
+
+    $('#copyBtn').onclick = async ()=>{
+      const p = buildPost(last);
+      try{ await navigator.clipboard.writeText(p); }
+      catch(_){ const t=document.createElement('textarea'); t.value=p; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+      const b=$('#copyBtn'); b.textContent='✓ Đã copy'; b.classList.add('done');
+      setTimeout(()=>{ b.textContent='Copy nội dung'; b.classList.remove('done'); },1600);
+    };
+    $('#regenBtn').onclick = ()=>render(last);
+    $('#incKeo').onchange = (e)=>{ includeKeo = e.target.checked; refreshPost(); };
+    $('#rerollBtn').onclick = ()=>{
+      keo = buildKeo();
+      const v=$('#keoVerdict'); v.textContent = `${keo.emoji} ${keo.verdict}`;
+      v.className = 'keo-verdict '+keo.cls;
+      $('#keoLine').textContent = keo.line;
+      $('#keoVibe').textContent = keo.vibe;
+      if(includeKeo) refreshPost();
+    };
+  }
+
+  async function run(){
+    const base = cleanTicker(input.value||'');
+    if(!base){ out.innerHTML = `<div class="state">Nhập một mã coin để bắt đầu — ví dụ BTC, SOL, PEPE.</div>`; return; }
+    input.value = base;
+    runBtn.disabled = true;
+    out.innerHTML = `<div class="state"><span class="spin"></span>Đang lấy dữ liệu ${base} từ Binance…</div>`;
+    try{
+      const data = await fetchData(base);
+      keo = buildKeo();
+      render(compute(base, data));
+    }catch(e){
+      const invalid = (e.binance && e.binance.code===-1121) || /invalid symbol/i.test(e.message||'');
+      out.innerHTML = `<div class="state err">${
+        invalid
+          ? `Không tìm thấy cặp <b>${base}USDT</b> trên Binance. Kiểm tra lại mã coin, hoặc thử chuyển Futures ↔ Spot.`
+          : `Không lấy được dữ liệu. Có thể do mạng chặn API Binance ở khu vực của bạn, hoặc Binance tạm giới hạn. Thử lại sau ít phút.`
+      }</div>`;
+    }finally{ runBtn.disabled = false; }
+  }
+
+  out.innerHTML = `<div class="state">Nhập một mã coin để bắt đầu — ví dụ BTC, SOL, PEPE.</div>`;
+  input.focus();
+})();
+</script>
+</body>
+</html>
